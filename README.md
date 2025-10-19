@@ -23,7 +23,7 @@ This version adds dependency checks, safe reinitialization, query cleanup, and g
 ```html
 <!-- Webflow Seamless Pagination [by Crystal The Developer Inc.] -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.pjax/2.0.1/jquery.pjax.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@v1.1.0/seamless-pagination.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@v1.0.0/seamless-pagination.js"></script>
 ```
 
 2. Make sure your CMS Collection List and pagination are wrapped in:
