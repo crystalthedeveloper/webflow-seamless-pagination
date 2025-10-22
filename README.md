@@ -25,9 +25,9 @@ Place the scripts near the bottom of your Webflow site (before `</body>`):
 
 ```html
 <!-- webflow seamless pagination [by Crystal The Developer Inc.] -->
-<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@v1.0.3/seamless-pagination.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@main/seamless-pagination.js"></script>
 <!-- webflow seamless pagination min [by Crystal The Developer Inc.] -->
-<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@v1.0.3/seamless-pagination.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@main/seamless-pagination.min.js"></script>
 ```
 
 Ensure your Collection List and pagination markup looks like this (Webflow’s default structure with a custom wrapper):
