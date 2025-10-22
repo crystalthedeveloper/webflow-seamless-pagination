@@ -1,175 +1,174 @@
-# Webflow Seamless Pagination (Robust)
+# Webflow Seamless Pagination (Crystal Build)
 
-A **production-ready PJAX-based script** that enables **seamless pagination for Webflow CMS** — no reloads, no flicker, and full compatibility with Webflow IX2 interactions and dropdowns.
-
-This version adds dependency checks, safe reinitialization, query cleanup, and graceful fallbacks for older browsers.
+A tiny attribute-driven script that lets the Webflow pagination button behave like “Load more.” It fetches the next CMS page in the background, appends the new items beneath the existing ones, re-runs your Webflow interactions (IX2, Lottie, Dropdown), and scrubs the `_page` query from the URL so the address bar stays clean.
 
 ---
 
-## 🚀 Features
-- ⚡ Instant CMS page transitions without reloading the page  
-- 🧭 Keeps **Webflow IX2 animations**, **dropdowns**, **tabs**, and **sliders** working after pagination  
-- 🧩 Cleans up Webflow pagination query (`?xxxxx_page=2`) in URLs  
-- 🧱 Safe guards for PJAX and container existence  
-- 🎨 Optional fade animation for smoother UX  
-- 🔁 Reinitializes custom scripts (like FAQ toggles) after “Load more”  
+## Features
+- One-click load-more behaviour using your existing Webflow pagination link.
+- Automatically appends new `.w-dyn-item` elements to the same list so previous items stay visible.
+- Reinitialises Webflow IX2, Lottie animations, dropdowns, and any queued `Webflow.ready()` functions after every append.
+- Adds a loading state to the button to prevent double taps and removes it entirely on the last page.
+- Cleans Webflow’s `?xxxx_page=2` style query string out of the URL after each load.
 
 ---
 
-## 📦 Installation
+## Requirements
+- jQuery (3.x recommended)
+- Webflow pagination enabled on the Collection List
+- A wrapper with the id `cltd-pagination`
 
-1. Add the following **before the closing `</body>` tag** in your Webflow project:
+---
+
+## Install
+Place the scripts near the bottom of your Webflow site (before `</body>`):
 
 ```html
-<!-- Webflow Seamless Pagination [by Crystal The Developer Inc.] -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.pjax/2.0.1/jquery.pjax.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@v1.0.2/seamless-pagination.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/crystalthedeveloper/webflow-seamless-pagination@main/seamless-pagination.js"></script>
 ```
 
-2. Make sure your CMS Collection List and pagination are wrapped in:
+Ensure your Collection List and pagination markup looks like this (Webflow’s default structure with a custom wrapper):
 
 ```html
-<div id="seamless-replace">
-  <!-- Webflow CMS Collection List -->
+<div id="cltd-pagination">
+  <div class="w-dyn-list">
+    <div class="w-dyn-items">
+      <!-- CMS items render here -->
+    </div>
+  </div>
+
+  <!-- Webflow’s pagination button (can keep default text and href) -->
+  <a class="w-pagination-next" href="?b9686d70_page=2">Load more</a>
 </div>
 ```
 
+You can optionally add `data-cltd-next` to the button if you want to target it more directly, but the script already listens for `.w-pagination-next`.
+
 ---
 
-## 💻 Example Script (v1.1.0)
+## Script (v2)
 
 ```js
-// Webflow Seamless Pagination (enhanced with full reinitialization)
-// Repo: crystalthedeveloper/webflow-seamless-pagination
-// Works on published Webflow sites (same-origin).
-// Make sure jQuery and jQuery-PJAX load BEFORE this script.
-
 (function ($) {
   $(function () {
-    var container = '#seamless-replace';
-    var $container = $(container);
+    const container = '#cltd-pagination';
+    const nextSel = '[data-cltd-next], .w-pagination-next';
 
-    if ($container.length === 0) {
-      console.warn('[SeamlessPagination] Missing container:', container);
+    console.log('[cltdPagination] ✅ Initialized using container:', container);
+
+    const $container = $(container);
+    const $list = $container.find('.w-dyn-items').first();
+
+    if (!$list.length) {
+      console.warn('[cltdPagination] ❌ Missing .w-dyn-items inside container.');
       return;
     }
 
-    if (!$.support || !$.support.pjax) {
-      console.warn('[SeamlessPagination] jQuery-PJAX not found. Load it before this script.');
-      return;
-    }
+    $(document).on('click', nextSel, function (e) {
+      e.preventDefault();
+      const $btn = $(this);
+      const href = $btn.attr('href');
+      if (!href) return;
 
-    $(document).pjax('.w-pagination-wrapper a[href]', container, {
-      container: container,
-      fragment: container,
-      scrollTo: false,
-      timeout: 4000
+      if ($btn.hasClass('is-loading')) return;
+      $btn.addClass('is-loading');
+      console.log('[cltdPagination] 🔘 Load More clicked:', href);
+
+      fetch(href)
+        .then(res => res.text())
+        .then(html => {
+          const $response = $('<div>').html(html);
+          const $newList = $response.find(container).find('.w-dyn-items').first();
+          const $newItems = $newList.find('.w-dyn-item');
+          const $newNext = $response.find(container).find(nextSel).first();
+
+          console.log(`[cltdPagination] 🧱 Found ${$newItems.length} new items.`);
+
+          if ($newItems.length) {
+            $list.append($newItems.clone(true, true));
+            console.log(`[cltdPagination] ✅ Appended ${$newItems.length} new CMS items.`);
+            reinitWebflow();
+          } else {
+            console.warn('[cltdPagination] ⚠️ No new CMS items found.');
+          }
+
+          if ($newNext.length) {
+            $btn.replaceWith($newNext);
+          } else {
+            $btn.remove();
+            console.log('[cltdPagination] 🏁 No next page, removing button.');
+          }
+
+          cleanURL();
+        })
+        .catch(err => console.error('[cltdPagination] ❌ Fetch error:', err))
+        .finally(() => $btn.removeClass('is-loading'));
     });
 
-    $(document).on('pjax:send', function () {
-      $container.addClass('is-loading');
-    });
-    $(document).on('pjax:complete', function () {
-      $container.removeClass('is-loading');
-    });
-
-    $(document).on('pjax:complete', function () {
-      // Reinit Webflow IX2 safely
+    function reinitWebflow() {
       try {
         if (window.Webflow && typeof Webflow.require === 'function') {
-          var ix = Webflow.require('ix2');
-          if (ix && typeof ix.init === 'function') ix.init();
-        }
-      } catch (e) {
-        console.warn('[SeamlessPagination] IX2 reinit warning:', e);
-      }
-
-      // Reinit Webflow components
-      try {
-        if (window.Webflow && typeof window.Webflow.ready === 'function') {
-          window.Webflow.ready();
-        }
-        if (window.Webflow && Array.isArray(window.Webflow.ready)) {
-          window.Webflow.ready.forEach(function (fn) {
-            if (typeof fn === 'function') fn();
-          });
-        }
-        if (window.Webflow && typeof window.Webflow.require === 'function') {
-          var dropdown = Webflow.require('dropdown');
+          const ix2 = Webflow.require('ix2');
+          if (ix2 && typeof ix2.init === 'function') ix2.init();
+          const lottie = Webflow.require('lottie');
+          if (lottie && typeof lottie.ready === 'function') lottie.ready();
+          const dropdown = Webflow.require('dropdown');
           if (dropdown && typeof dropdown.ready === 'function') dropdown.ready();
         }
-      } catch (e) {
-        console.warn('[SeamlessPagination] Webflow component reinit warning:', e);
-      }
 
-      // Optional: custom reinit for FAQs or accordions
-      if (typeof initFAQDropdowns === 'function') {
-        try {
-          initFAQDropdowns();
-        } catch (e) {
-          console.warn('[SeamlessPagination] FAQ reinit skipped:', e);
+        if (window.Webflow && Array.isArray(window.Webflow.ready)) {
+          window.Webflow.ready.forEach(fn => typeof fn === 'function' && fn());
         }
-      }
 
-      // Clean up Webflow pagination query (?xxxxx_page=2)
+        $list.find('.w-dyn-item').css({ opacity: 0 }).animate({ opacity: 1 }, 500);
+      } catch (e) {
+        console.warn('[cltdPagination] ⚠️ Webflow reinit warning:', e);
+      }
+    }
+
+    function cleanURL() {
       try {
-        var url = new URL(window.location.href);
-        var removed = false;
-        Array.from(url.searchParams.keys()).forEach(function (key) {
-          if (/_page$/.test(key)) {
-            url.searchParams.delete(key);
-            removed = true;
-          }
-        });
-        if (removed) {
-          var newQuery = url.searchParams.toString();
-          var newUrl = url.pathname + (newQuery ? '?' + newQuery : '') + window.location.hash;
-          window.history.replaceState(null, '', newUrl);
-        }
+        const clean = window.location.origin + window.location.pathname + window.location.hash;
+        window.history.replaceState(null, '', clean);
+        console.log('[cltdPagination] 🧹 Cleaned URL:', clean);
       } catch (e) {
-        var cleaned = window.location.href.replace(/\?[^#]*?_page=\d+/, '');
-        window.history.replaceState(null, '', cleaned);
+        console.warn('[cltdPagination] ⚠️ URL cleanup failed:', e);
       }
-    });
+    }
   });
 })(jQuery);
 ```
 
 ---
 
-## 🎨 Optional CSS (for fade effect)
+## Behaviour
+| Action | Result |
+| ------ | ------ |
+| First click | Fetches the next CMS page, appends the items beneath the existing ones, and fades them in. |
+| Subsequent clicks | Keeps stacking new items while leaving the earlier batches in place. |
+| Final page | Removes the pagination button when no further pages are returned. |
+| Interactions | Reinitialises IX2, Lottie, dropdowns, and queued `Webflow.ready()` functions. |
+| URL | Cleans the `_page` parameter via `history.replaceState`. |
+
+---
+
+## Styling Tip
 
 ```css
-#seamless-replace.is-loading {
-  opacity: 0.3;
+.w-pagination-next.is-loading,
+[data-cltd-next].is-loading {
   pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-#seamless-replace {
-  transition: opacity 0.3s ease;
+  opacity: 0.5;
 }
 ```
 
 ---
 
-## 🧠 How It Works
-PJAX (PushState + AJAX) replaces the CMS list content dynamically in the `#seamless-replace` container when users click pagination links.  
-After each load, Webflow’s built-in components and any custom scripts are reinitialized automatically — ensuring **dropdowns, sliders, tabs, and animations** continue working seamlessly without a page reload.
+## Author
+**Crystal The Developer Inc.** — https://www.crystalthedeveloper.ca
 
 ---
 
-## 🧾 Changelog
-**v1.1.0** — Added full Webflow component reinitialization (dropdowns, sliders, tabs, custom scripts).  
-Fixes FAQ dropdown issue after PJAX load.
-
----
-
-## 🧑‍💻 Author
-**Crystal The Developer Inc.**  
-🌐 [crystalthedeveloper.ca](https://www.crystalthedeveloper.ca)  
-📧 contact@crystalthedeveloper.ca  
-
----
-
-## 📄 License
-MIT License — free for personal and commercial use.
+## License
+MIT

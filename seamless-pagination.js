@@ -1,103 +1,103 @@
-// Webflow Seamless Pagination (enhanced with full reinitialization)
-// Repo: crystalthedeveloper/webflow-seamless-pagination
-// Works on published Webflow sites (same-origin).
-// Make sure jQuery and jQuery-PJAX load BEFORE this script.
-
 (function ($) {
   $(function () {
-    var container = '#seamless-replace';
-    var $container = $(container);
+    const container = '#cltd-pagination';
+    const nextSel = '[data-cltd-next], .w-pagination-next';
 
-    // ✅ Guard: container must exist
-    if ($container.length === 0) {
-      console.warn('[SeamlessPagination] Missing container:', container);
+    console.log('[cltdPagination] ✅ Initialized using container:', container);
+
+    const $container = $(container);
+    const $list = $container.find('.w-dyn-items').first();
+
+    if (!$list.length) {
+      console.warn('[cltdPagination] ❌ Missing .w-dyn-items inside container.');
       return;
     }
 
-    // ✅ Guard: PJAX must be loaded
-    if (!$.support || !$.support.pjax) {
-      console.warn('[SeamlessPagination] jQuery-PJAX not found. Load it before this script.');
-      return;
-    }
+    // ---- CLICK HANDLER --------------------------------------------------
+    $(document).on('click', nextSel, function (e) {
+      e.preventDefault();
+      const $btn = $(this);
+      const href = $btn.attr('href');
+      if (!href) return;
 
-    // ✅ Attach PJAX to Webflow pagination links (delegated)
-    $(document).pjax('.w-pagination-wrapper a[href]', container, {
-      container: container,
-      fragment: container,
-      scrollTo: false,
-      timeout: 4000
+      if ($btn.hasClass('is-loading')) return;
+      $btn.addClass('is-loading');
+      console.log('[cltdPagination] 🔘 Load More clicked:', href);
+
+      fetch(href)
+        .then(res => res.text())
+        .then(html => {
+          const $response = $('<div>').html(html);
+          const $newList = $response.find(container).find('.w-dyn-items').first();
+          const $newItems = $newList.find('.w-dyn-item');
+          const $newNext = $response.find(container).find(nextSel).first();
+
+          console.log(`[cltdPagination] 🧱 Found ${$newItems.length} new items.`);
+
+          if ($newItems.length) {
+            $list.append($newItems.clone(true, true));
+            console.log(`[cltdPagination] ✅ Appended ${$newItems.length} new CMS items.`);
+            reinitWebflow();
+          } else {
+            console.warn('[cltdPagination] ⚠️ No new CMS items found.');
+          }
+
+          if ($newNext.length) {
+            $btn.replaceWith($newNext);
+          } else {
+            $btn.remove();
+            console.log('[cltdPagination] 🏁 No next page, removing button.');
+          }
+
+          cleanURL();
+        })
+        .catch(err => console.error('[cltdPagination] ❌ Fetch error:', err))
+        .finally(() => $btn.removeClass('is-loading'));
     });
 
-    // ✅ Optional: loading class hooks
-    $(document).on('pjax:send', function () {
-      $container.addClass('is-loading');
-    });
-    $(document).on('pjax:complete', function () {
-      $container.removeClass('is-loading');
-    });
-
-    // ✅ Reinitialization after PJAX content swap
-    $(document).on('pjax:complete', function () {
-      // --- 1️⃣ Reinit Webflow IX2 animations ---
+    // ---- REINIT WEBFLOW INTERACTIONS (IX2 + LOTTIE + DROPDOWNS) ---------
+    function reinitWebflow() {
       try {
         if (window.Webflow && typeof Webflow.require === 'function') {
-          var ix = Webflow.require('ix2');
-          if (ix && typeof ix.init === 'function') ix.init();
-        }
-      } catch (e) {
-        console.warn('[SeamlessPagination] IX2 reinit warning:', e);
-      }
+          // Re-init IX2
+          const ix2 = Webflow.require('ix2');
+          if (ix2 && typeof ix2.init === 'function') ix2.init();
+          console.log('[cltdPagination] ♻️ IX2 reinitialized.');
 
-      // --- 2️⃣ Reinit Webflow components (dropdowns, sliders, tabs, etc.) ---
-      try {
-        if (window.Webflow && typeof window.Webflow.ready === 'function') {
-          window.Webflow.ready();
+          // Re-init Lottie animations (important for your JSON icons)
+          const lottie = Webflow.require('lottie');
+          if (lottie && typeof lottie.ready === 'function') lottie.ready();
+          console.log('[cltdPagination] 🎞️ Lottie animations reinitialized.');
+
+          // Re-init Webflow dropdown component
+          const dropdown = Webflow.require('dropdown');
+          if (dropdown && typeof dropdown.ready === 'function') dropdown.ready();
+          console.log('[cltdPagination] 🔽 Dropdowns reinitialized.');
         }
-        // Run all queued ready functions if available
+
+        // Force-run any queued Webflow ready() scripts
         if (window.Webflow && Array.isArray(window.Webflow.ready)) {
-          window.Webflow.ready.forEach(function (fn) {
+          window.Webflow.ready.forEach(fn => {
             if (typeof fn === 'function') fn();
           });
         }
-        // Rebind dropdowns specifically (Webflow component)
-        if (window.Webflow && typeof window.Webflow.require === 'function') {
-          var dropdown = Webflow.require('dropdown');
-          if (dropdown && typeof dropdown.ready === 'function') dropdown.ready();
-        }
+
+        // Optional: fade-in new CMS items
+        $list.find('.w-dyn-item').css({opacity: 0}).animate({opacity: 1}, 500);
       } catch (e) {
-        console.warn('[SeamlessPagination] Webflow component reinit warning:', e);
+        console.warn('[cltdPagination] ⚠️ Webflow reinit warning:', e);
       }
+    }
 
-      // --- 3️⃣ (Optional) Rebind custom FAQ toggles or scripts ---
-      // Example: Replace with your FAQ toggle logic if needed
-      if (typeof initFAQDropdowns === 'function') {
-        try {
-          initFAQDropdowns();
-        } catch (e) {
-          console.warn('[SeamlessPagination] FAQ reinit skipped:', e);
-        }
-      }
-
-      // --- 4️⃣ Clean up URL query (?xxxxx_page=2) ---
+    // ---- CLEAN URL ------------------------------------------------------
+    function cleanURL() {
       try {
-        var url = new URL(window.location.href);
-        var removed = false;
-        Array.from(url.searchParams.keys()).forEach(function (key) {
-          if (/_page$/.test(key)) {
-            url.searchParams.delete(key);
-            removed = true;
-          }
-        });
-        if (removed) {
-          var newQuery = url.searchParams.toString();
-          var newUrl = url.pathname + (newQuery ? '?' + newQuery : '') + window.location.hash;
-          window.history.replaceState(null, '', newUrl);
-        }
+        const clean = window.location.origin + window.location.pathname + window.location.hash;
+        window.history.replaceState(null, '', clean);
+        console.log('[cltdPagination] 🧹 Cleaned URL:', clean);
       } catch (e) {
-        // Older browser fallback
-        var cleaned = window.location.href.replace(/\?[^#]*?_page=\d+/, '');
-        window.history.replaceState(null, '', cleaned);
+        console.warn('[cltdPagination] ⚠️ URL cleanup failed:', e);
       }
-    });
+    }
   });
 })(jQuery);
